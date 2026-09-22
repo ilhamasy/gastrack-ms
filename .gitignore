@@ -39,3 +39,6 @@ logs/
 
 # Docker
 docker-compose.override.yml
+
+# Build artifacts
+api
