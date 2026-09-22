@@ -13,6 +13,7 @@ import (
 	"github.com/ilhamasy/gastrack-ms/internal/config"
 	"github.com/ilhamasy/gastrack-ms/internal/database"
 	"github.com/ilhamasy/gastrack-ms/internal/handler"
+	"github.com/ilhamasy/gastrack-ms/internal/middleware"
 	"github.com/ilhamasy/gastrack-ms/internal/service"
 )
 
@@ -41,6 +42,7 @@ func main() {
 
 	// 4. Setup services and handlers
 	authService := service.NewAuthService(db.Pool, cfg.JWTSecret)
+	vehicleService := service.NewVehicleService(db.Pool)
 	
 	mux := http.NewServeMux()
 	
@@ -50,6 +52,11 @@ func main() {
 	authHandler := handler.NewAuthHandler(authService)
 	mux.HandleFunc("/api/auth/register", authHandler.Register)
 	mux.HandleFunc("/api/auth/login", authHandler.Login)
+
+	vehicleHandler := handler.NewVehicleHandler(vehicleService)
+	authMiddleware := middleware.Auth([]byte(cfg.JWTSecret))
+	mux.Handle("/api/vehicles", authMiddleware(vehicleHandler))
+	mux.Handle("/api/vehicles/", authMiddleware(vehicleHandler))
 
 	// 5. Setup HTTP server
 	srv := &http.Server{
