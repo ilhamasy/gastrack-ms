@@ -33,6 +33,8 @@ func (h *VehicleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.GetVehicles(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/api/vehicles":
 		h.AddVehicle(w, r)
+	case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/primary"):
+		h.SetPrimaryVehicle(w, r)
 	case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/vehicles/"):
 		h.UpdateVehicle(w, r)
 	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/vehicles/"):
@@ -186,4 +188,33 @@ func (h *VehicleHandler) DeleteVehicle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *VehicleHandler) SetPrimaryVehicle(w http.ResponseWriter, r *http.Request) {
+	userIDStr, _ := r.Context().Value(middleware.UserIDKey).(string)
+	userID, _ := uuid.Parse(userIDStr)
+
+	// Extract ID from URL path /api/vehicles/{id}/primary
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 2 {
+		writeError(w, http.StatusBadRequest, "invalid vehicle id")
+		return
+	}
+	idStr := pathParts[len(pathParts)-2]
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid vehicle id")
+		return
+	}
+
+	if err := h.vehicleService.SetPrimaryVehicle(r.Context(), id, userID); err != nil {
+		if err == service.ErrVehicleNotFound {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to set primary vehicle")
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
