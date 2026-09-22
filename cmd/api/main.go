@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"strings"
 
 	"github.com/ilhamasy/gastrack-ms/internal/config"
 	"github.com/ilhamasy/gastrack-ms/internal/database"
@@ -53,10 +54,20 @@ func main() {
 	mux.HandleFunc("/api/auth/register", authHandler.Register)
 	mux.HandleFunc("/api/auth/login", authHandler.Login)
 
+	odometerService := service.NewOdometerService(db.Pool)
+	odometerHandler := handler.NewOdometerHandler(odometerService)
+
 	vehicleHandler := handler.NewVehicleHandler(vehicleService)
 	authMiddleware := middleware.Auth([]byte(cfg.JWTSecret))
+	
 	mux.Handle("/api/vehicles", authMiddleware(vehicleHandler))
-	mux.Handle("/api/vehicles/", authMiddleware(vehicleHandler))
+	mux.Handle("/api/vehicles/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/odometer") {
+			odometerHandler.ServeHTTP(w, r)
+			return
+		}
+		vehicleHandler.ServeHTTP(w, r)
+	})))
 
 	// 5. Setup HTTP server
 	srv := &http.Server{
