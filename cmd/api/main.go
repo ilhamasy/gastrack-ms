@@ -13,6 +13,7 @@ import (
 	"github.com/ilhamasy/gastrack-ms/internal/config"
 	"github.com/ilhamasy/gastrack-ms/internal/database"
 	"github.com/ilhamasy/gastrack-ms/internal/handler"
+	"github.com/ilhamasy/gastrack-ms/internal/service"
 )
 
 func main() {
@@ -38,11 +39,17 @@ func main() {
 		log.Fatalf("Failed to run database migrations: %v", err)
 	}
 
-	// 4. Setup router and handlers
+	// 4. Setup services and handlers
+	authService := service.NewAuthService(db.Pool, cfg.JWTSecret)
+	
 	mux := http.NewServeMux()
 	
 	healthHandler := handler.NewHealthHandler(db)
 	mux.Handle("/health", healthHandler)
+
+	authHandler := handler.NewAuthHandler(authService)
+	mux.HandleFunc("/api/auth/register", authHandler.Register)
+	mux.HandleFunc("/api/auth/login", authHandler.Login)
 
 	// 5. Setup HTTP server
 	srv := &http.Server{
