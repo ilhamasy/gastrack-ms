@@ -122,3 +122,33 @@ func (s *VehicleService) DeleteVehicle(ctx context.Context, id uuid.UUID, userID
 
 	return nil
 }
+
+func (s *VehicleService) SetPrimaryVehicle(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Unset primary for all vehicles of this user
+	_, err = tx.Exec(ctx, "UPDATE vehicles SET is_primary = false WHERE user_id = $1", userID)
+	if err != nil {
+		return fmt.Errorf("failed to unset primary vehicles: %w", err)
+	}
+
+	// Set the selected vehicle as primary
+	cmdTag, err := tx.Exec(ctx, "UPDATE vehicles SET is_primary = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND user_id = $2", id, userID)
+	if err != nil {
+		return fmt.Errorf("failed to set primary vehicle: %w", err)
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return ErrVehicleNotFound
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
