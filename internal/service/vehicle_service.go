@@ -26,11 +26,12 @@ type Vehicle struct {
 }
 
 type VehicleService struct {
-	db *pgxpool.Pool
+	db                 *pgxpool.Pool
+	maintenanceService *MaintenanceService
 }
 
-func NewVehicleService(db *pgxpool.Pool) *VehicleService {
-	return &VehicleService{db: db}
+func NewVehicleService(db *pgxpool.Pool, maintenanceService *MaintenanceService) *VehicleService {
+	return &VehicleService{db: db, maintenanceService: maintenanceService}
 }
 
 func (s *VehicleService) GetVehicles(ctx context.Context, userID uuid.UUID) ([]Vehicle, error) {
@@ -64,9 +65,15 @@ func (s *VehicleService) GetVehicles(ctx context.Context, userID uuid.UUID) ([]V
 }
 
 func (s *VehicleService) AddVehicle(ctx context.Context, v *Vehicle) error {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	// Check if this is the user's first vehicle
 	var count int
-	err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM vehicles WHERE user_id = $1", v.UserID).Scan(&count)
+	err = tx.QueryRow(ctx, "SELECT COUNT(*) FROM vehicles WHERE user_id = $1", v.UserID).Scan(&count)
 	if err != nil {
 		return fmt.Errorf("failed to count vehicles: %w", err)
 	}
@@ -75,14 +82,24 @@ func (s *VehicleService) AddVehicle(ctx context.Context, v *Vehicle) error {
 		v.IsPrimary = true
 	}
 
-	err = s.db.QueryRow(ctx, 
+	err = tx.QueryRow(ctx, 
 		`INSERT INTO vehicles (user_id, name, make, model, variant, year, is_primary, current_odometer) 
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
 		v.UserID, v.Name, v.Make, v.Model, v.Variant, v.Year, v.IsPrimary, v.CurrentOdometer,
 	).Scan(&v.ID)
 
 	if err != nil {
-		return fmt.Errorf("failed to add vehicle: %w", err)
+		return fmt.Errorf("failed to insert vehicle: %w", err)
+	}
+
+	if s.maintenanceService != nil {
+		if err := s.maintenanceService.ApplyTemplatesToVehicle(ctx, tx, v); err != nil {
+			return fmt.Errorf("failed to apply maintenance templates: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

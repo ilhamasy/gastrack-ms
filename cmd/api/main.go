@@ -43,7 +43,8 @@ func main() {
 
 	// 4. Setup services and handlers
 	authService := service.NewAuthService(db.Pool, cfg.JWTSecret)
-	vehicleService := service.NewVehicleService(db.Pool)
+	maintenanceService := service.NewMaintenanceService(db.Pool)
+	vehicleService := service.NewVehicleService(db.Pool, maintenanceService)
 	
 	mux := http.NewServeMux()
 	
