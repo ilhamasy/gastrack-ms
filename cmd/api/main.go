@@ -55,8 +55,12 @@ func main() {
 	mux.HandleFunc("/api/auth/register", authHandler.Register)
 	mux.HandleFunc("/api/auth/login", authHandler.Login)
 
+	preferencesService := service.NewPreferencesService(db.Pool)
+	preferencesHandler := handler.NewPreferencesHandler(preferencesService)
+	notificationService := service.NewNotificationService(db.Pool, preferencesService)
+
 	odometerService := service.NewOdometerService(db.Pool)
-	odometerHandler := handler.NewOdometerHandler(odometerService)
+	odometerHandler := handler.NewOdometerHandler(odometerService, notificationService)
 
 	maintenanceHandler := handler.NewMaintenanceHandler(maintenanceService, vehicleService)
 	serviceRecordService := service.NewServiceRecordService(db.Pool)
@@ -71,6 +75,8 @@ func main() {
 	recommendationService := service.NewRecommendationService(db.Pool)
 	recommendationHandler := handler.NewRecommendationHandler(recommendationService)
 
+
+	mux.Handle("/api/users/preferences", authMiddleware(preferencesHandler))
 	mux.Handle("/api/vehicles", authMiddleware(vehicleHandler))
 	mux.Handle("/api/vehicles/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
