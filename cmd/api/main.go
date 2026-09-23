@@ -59,6 +59,8 @@ func main() {
 	odometerHandler := handler.NewOdometerHandler(odometerService)
 
 	maintenanceHandler := handler.NewMaintenanceHandler(maintenanceService, vehicleService)
+	serviceRecordService := service.NewServiceRecordService(db.Pool)
+	serviceRecordHandler := handler.NewServiceRecordHandler(serviceRecordService)
 
 	vehicleHandler := handler.NewVehicleHandler(vehicleService)
 	authMiddleware := middleware.Auth([]byte(cfg.JWTSecret))
@@ -71,6 +73,10 @@ func main() {
 		}
 		if strings.Contains(r.URL.Path, "/maintenance") {
 			maintenanceHandler.ServeHTTP(w, r)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/service-records") {
+			serviceRecordHandler.AddServiceRecord(w, r)
 			return
 		}
 		vehicleHandler.ServeHTTP(w, r)
