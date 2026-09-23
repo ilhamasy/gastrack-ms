@@ -65,9 +65,21 @@ func main() {
 	vehicleHandler := handler.NewVehicleHandler(vehicleService)
 	authMiddleware := middleware.Auth([]byte(cfg.JWTSecret))
 	
+	expenseService := service.NewExpenseService(db.Pool)
+	expenseHandler := handler.NewExpenseHandler(expenseService)
+
 	mux.Handle("/api/vehicles", authMiddleware(vehicleHandler))
 	mux.Handle("/api/vehicles/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/odometer") {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if strings.Contains(r.URL.Path, "/odometer") {
 			odometerHandler.ServeHTTP(w, r)
 			return
 		}
@@ -77,6 +89,10 @@ func main() {
 		}
 		if strings.Contains(r.URL.Path, "/service-records") {
 			serviceRecordHandler.ServeHTTP(w, r)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/expenses") {
+			expenseHandler.GetExpenseAnalytics(w, r)
 			return
 		}
 		vehicleHandler.ServeHTTP(w, r)
