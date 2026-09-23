@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -11,11 +12,15 @@ import (
 )
 
 type OdometerHandler struct {
-	odometerService *service.OdometerService
+	odometerService     *service.OdometerService
+	notificationService *service.NotificationService
 }
 
-func NewOdometerHandler(odometerService *service.OdometerService) *OdometerHandler {
-	return &OdometerHandler{odometerService: odometerService}
+func NewOdometerHandler(odometerService *service.OdometerService, notificationService *service.NotificationService) *OdometerHandler {
+	return &OdometerHandler{
+		odometerService:     odometerService,
+		notificationService: notificationService,
+	}
 }
 
 type LogOdometerRequest struct {
@@ -83,6 +88,15 @@ func (h *OdometerHandler) handleLogOdometer(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "Failed to log odometer")
 		return
 	}
+
+	// Trigger async check for reminders
+	go func() {
+		// Create a new background context because the request context will be canceled
+		bgCtx := context.Background()
+		if h.notificationService != nil {
+			_ = h.notificationService.CheckAndSendMaintenanceReminders(bgCtx, userID.String(), vehicleID.String())
+		}
+	}()
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
