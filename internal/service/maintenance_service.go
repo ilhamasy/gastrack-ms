@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -76,6 +77,13 @@ func (s *MaintenanceService) ApplyTemplatesToVehicle(ctx context.Context, tx pgx
 }
 
 func (s *MaintenanceService) GetVehicleMaintenance(ctx context.Context, vehicleID string) ([]model.VehicleMaintenance, error) {
+	// First get current odometer
+	var currentOdometer int
+	err := s.db.QueryRow(ctx, "SELECT current_odometer FROM vehicles WHERE id = $1", vehicleID).Scan(&currentOdometer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get vehicle current odometer: %w", err)
+	}
+
 	query := `
 		SELECT id, vehicle_id, template_id, name, description, interval_km, interval_months, 
 		       last_service_km, last_service_date, source, created_at, updated_at
@@ -99,6 +107,9 @@ func (s *MaintenanceService) GetVehicleMaintenance(ctx context.Context, vehicleI
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan vehicle maintenance item: %w", err)
 		}
+		
+		CalculateMaintenanceStatus(&item, currentOdometer)
+		
 		items = append(items, item)
 	}
 
@@ -158,4 +169,76 @@ func (s *MaintenanceService) UpdateMaintenanceItem(ctx context.Context, vehicleI
 		return fmt.Errorf("failed to update maintenance item: %w", err)
 	}
 	return nil
+}
+
+func CalculateMaintenanceStatus(item *model.VehicleMaintenance, currentOdometer int) {
+	priority := 5
+	status := "NORMAL"
+
+	// KM Based Calculation
+	if item.IntervalKm != nil && *item.IntervalKm > 0 {
+		var nextKm int
+		if item.LastServiceKm != nil {
+			nextKm = *item.LastServiceKm + *item.IntervalKm
+		} else {
+			// If no last service, interval starts from 0 effectively, but really it means it should have been done at IntervalKm.
+			nextKm = *item.IntervalKm
+		}
+		item.NextServiceKm = &nextKm
+		remKm := nextKm - currentOdometer
+		item.RemainingKm = &remKm
+
+		if remKm < 0 {
+			priority = 1
+			status = "OVERDUE"
+		} else if remKm == 0 {
+			if priority > 2 {
+				priority = 2
+				status = "DUE"
+			}
+		} else if remKm <= 100 {
+			if priority > 3 {
+				priority = 3
+				status = "CRITICAL"
+			}
+		} else if remKm <= 500 {
+			if priority > 4 {
+				priority = 4
+				status = "UPCOMING"
+			}
+		}
+	}
+
+	// Time Based Calculation
+	if item.IntervalMonths != nil && *item.IntervalMonths > 0 {
+		if item.LastServiceDate != nil {
+			nextDate := item.LastServiceDate.AddDate(0, *item.IntervalMonths, 0)
+			item.NextServiceDate = &nextDate
+			remDays := int(time.Until(nextDate).Hours() / 24)
+			item.RemainingDays = &remDays
+
+			if remDays < 0 {
+				priority = 1
+				status = "OVERDUE"
+			} else if remDays == 0 {
+				if priority > 2 {
+					priority = 2
+					status = "DUE"
+				}
+			} else if remDays <= 7 {
+				if priority > 3 {
+					priority = 3
+					status = "CRITICAL"
+				}
+			} else if remDays <= 30 {
+				if priority > 4 {
+					priority = 4
+					status = "UPCOMING"
+				}
+			}
+		}
+	}
+
+	item.Status = status
+	item.Priority = priority
 }
