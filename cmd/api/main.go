@@ -68,6 +68,9 @@ func main() {
 	expenseService := service.NewExpenseService(db.Pool)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 
+	recommendationService := service.NewRecommendationService(db.Pool)
+	recommendationHandler := handler.NewRecommendationHandler(recommendationService)
+
 	mux.Handle("/api/vehicles", authMiddleware(vehicleHandler))
 	mux.Handle("/api/vehicles/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -93,6 +96,10 @@ func main() {
 		}
 		if strings.Contains(r.URL.Path, "/expenses") {
 			expenseHandler.GetExpenseAnalytics(w, r)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/recommendations") {
+			recommendationHandler.GetRecommendations(w, r)
 			return
 		}
 		vehicleHandler.ServeHTTP(w, r)
