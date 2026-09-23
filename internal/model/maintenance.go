@@ -22,15 +22,16 @@ type MaintenanceTemplate struct {
 }
 
 type VehicleMaintenance struct {
-	ID             uuid.UUID  `json:"id"`
-	VehicleID      uuid.UUID  `json:"vehicle_id"`
-	TemplateID     *uuid.UUID `json:"template_id"`
-	Name           string     `json:"name"`
-	Description    *string    `json:"description"`
-	IntervalKm     *int       `json:"interval_km"`
-	IntervalMonths *int       `json:"interval_months"`
-	LastServiceKm  *int       `json:"last_service_km"`
+	ID              uuid.UUID  `json:"id"`
+	VehicleID       uuid.UUID  `json:"vehicle_id"`
+	TemplateID      *uuid.UUID `json:"template_id"`
+	Name            string     `json:"name"`
+	Description     *string    `json:"description"`
+	IntervalKm      *int       `json:"interval_km"`
+	IntervalMonths  *int       `json:"interval_months"`
+	LastServiceKm   *int       `json:"last_service_km"`
 	LastServiceDate *time.Time `json:"last_service_date"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	Source          string     `json:"source"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ilhamasy/gastrack-ms/internal/model"
 )
 
 type MaintenanceService struct {
@@ -56,8 +57,8 @@ func (s *MaintenanceService) ApplyTemplatesToVehicle(ctx context.Context, tx pgx
 	if len(templates) > 0 {
 		insertQuery := `
 			INSERT INTO vehicle_maintenance 
-			(vehicle_id, template_id, name, description, interval_km, interval_months, last_service_km) 
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			(vehicle_id, template_id, name, description, interval_km, interval_months, last_service_km, source) 
+			VALUES ($1, $2, $3, $4, $5, $6, $7, 'TEMPLATE')
 		`
 		for _, t := range templates {
 			// Initially last_service_km could be the current odometer or 0
@@ -71,5 +72,90 @@ func (s *MaintenanceService) ApplyTemplatesToVehicle(ctx context.Context, tx pgx
 		}
 	}
 
+	return nil
+}
+
+func (s *MaintenanceService) GetVehicleMaintenance(ctx context.Context, vehicleID string) ([]model.VehicleMaintenance, error) {
+	query := `
+		SELECT id, vehicle_id, template_id, name, description, interval_km, interval_months, 
+		       last_service_km, last_service_date, source, created_at, updated_at
+		FROM vehicle_maintenance
+		WHERE vehicle_id = $1
+		ORDER BY created_at ASC
+	`
+	rows, err := s.db.Query(ctx, query, vehicleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query vehicle maintenance: %w", err)
+	}
+	defer rows.Close()
+
+	var items []model.VehicleMaintenance
+	for rows.Next() {
+		var item model.VehicleMaintenance
+		if err := rows.Scan(
+			&item.ID, &item.VehicleID, &item.TemplateID, &item.Name, &item.Description,
+			&item.IntervalKm, &item.IntervalMonths, &item.LastServiceKm, &item.LastServiceDate,
+			&item.Source, &item.CreatedAt, &item.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan vehicle maintenance item: %w", err)
+		}
+		items = append(items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	if items == nil {
+		items = []model.VehicleMaintenance{}
+	}
+
+	return items, nil
+}
+
+func (s *MaintenanceService) AddCustomMaintenanceItem(ctx context.Context, item *model.VehicleMaintenance) error {
+	query := `
+		INSERT INTO vehicle_maintenance 
+		(vehicle_id, name, description, interval_km, interval_months, last_service_km, last_service_date, source)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'USER_CREATED')
+		RETURNING id, created_at, updated_at, source
+	`
+	err := s.db.QueryRow(ctx, query,
+		item.VehicleID, item.Name, item.Description, item.IntervalKm, item.IntervalMonths,
+		item.LastServiceKm, item.LastServiceDate,
+	).Scan(&item.ID, &item.CreatedAt, &item.UpdatedAt, &item.Source)
+
+	if err != nil {
+		return fmt.Errorf("failed to add custom maintenance item: %w", err)
+	}
+	return nil
+}
+
+func (s *MaintenanceService) UpdateMaintenanceItem(ctx context.Context, vehicleID string, itemID string, updates *model.VehicleMaintenance) error {
+	// First get current item to check source
+	var currentSource string
+	err := s.db.QueryRow(ctx, "SELECT source FROM vehicle_maintenance WHERE id = $1 AND vehicle_id = $2", itemID, vehicleID).Scan(&currentSource)
+	if err != nil {
+		return fmt.Errorf("failed to get maintenance item: %w", err)
+	}
+
+	newSource := currentSource
+	if currentSource == "TEMPLATE" {
+		newSource = "USER_CUSTOMIZED"
+	}
+
+	query := `
+		UPDATE vehicle_maintenance 
+		SET name = $1, description = $2, interval_km = $3, interval_months = $4, 
+		    last_service_km = $5, last_service_date = $6, source = $7, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $8 AND vehicle_id = $9
+	`
+	_, err = s.db.Exec(ctx, query,
+		updates.Name, updates.Description, updates.IntervalKm, updates.IntervalMonths,
+		updates.LastServiceKm, updates.LastServiceDate, newSource, itemID, vehicleID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update maintenance item: %w", err)
+	}
 	return nil
 }
