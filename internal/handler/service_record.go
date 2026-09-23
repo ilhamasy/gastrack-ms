@@ -54,3 +54,36 @@ func (h *ServiceRecordHandler) AddServiceRecord(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(record)
 }
+
+func (h *ServiceRecordHandler) GetServiceRecords(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/vehicles/"), "/")
+	if len(parts) == 0 || parts[0] == "" {
+		http.Error(w, "vehicle id is required", http.StatusBadRequest)
+		return
+	}
+	vehicleID := parts[0]
+
+	records, err := h.serviceRecordService.GetServiceRecords(r.Context(), vehicleID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if records == nil {
+		records = []model.ServiceRecord{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(records)
+}
+
+func (h *ServiceRecordHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.GetServiceRecords(w, r)
+	case http.MethodPost:
+		h.AddServiceRecord(w, r)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}

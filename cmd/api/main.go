@@ -76,7 +76,7 @@ func main() {
 			return
 		}
 		if strings.Contains(r.URL.Path, "/service-records") {
-			serviceRecordHandler.AddServiceRecord(w, r)
+			serviceRecordHandler.ServeHTTP(w, r)
 			return
 		}
 		vehicleHandler.ServeHTTP(w, r)
