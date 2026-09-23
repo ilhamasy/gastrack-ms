@@ -64,6 +64,15 @@ func (s *VehicleService) GetVehicles(ctx context.Context, userID uuid.UUID) ([]V
 	return vehicles, nil
 }
 
+func (s *VehicleService) IsVehicleOwner(ctx context.Context, vehicleID uuid.UUID, userID uuid.UUID) (bool, error) {
+	var exists bool
+	err := s.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM vehicles WHERE id = $1 AND user_id = $2)", vehicleID, userID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check vehicle ownership: %w", err)
+	}
+	return exists, nil
+}
+
 func (s *VehicleService) AddVehicle(ctx context.Context, v *Vehicle) error {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {

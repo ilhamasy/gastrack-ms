@@ -5,16 +5,22 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+	"github.com/ilhamasy/gastrack-ms/internal/middleware"
 	"github.com/ilhamasy/gastrack-ms/internal/model"
 	"github.com/ilhamasy/gastrack-ms/internal/service"
 )
 
 type ServiceRecordHandler struct {
 	serviceRecordService *service.ServiceRecordService
+	vehicleService       *service.VehicleService
 }
 
-func NewServiceRecordHandler(serviceRecordService *service.ServiceRecordService) *ServiceRecordHandler {
-	return &ServiceRecordHandler{serviceRecordService: serviceRecordService}
+func NewServiceRecordHandler(srs *service.ServiceRecordService, vs *service.VehicleService) *ServiceRecordHandler {
+	return &ServiceRecordHandler{
+		serviceRecordService: srs,
+		vehicleService:       vs,
+	}
 }
 
 func (h *ServiceRecordHandler) AddServiceRecord(w http.ResponseWriter, r *http.Request) {
@@ -24,6 +30,32 @@ func (h *ServiceRecordHandler) AddServiceRecord(w http.ResponseWriter, r *http.R
 		return
 	}
 	vehicleID := parts[0]
+	vID, err := uuid.Parse(vehicleID)
+	if err != nil {
+		http.Error(w, "invalid vehicle id", http.StatusBadRequest)
+		return
+	}
+
+	userIDStr, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	isOwner, err := h.vehicleService.IsVehicleOwner(r.Context(), vID, userID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !isOwner {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 
 	var req model.ServiceRecord
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -62,6 +94,32 @@ func (h *ServiceRecordHandler) GetServiceRecords(w http.ResponseWriter, r *http.
 		return
 	}
 	vehicleID := parts[0]
+	vID, err := uuid.Parse(vehicleID)
+	if err != nil {
+		http.Error(w, "invalid vehicle id", http.StatusBadRequest)
+		return
+	}
+
+	userIDStr, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	isOwner, err := h.vehicleService.IsVehicleOwner(r.Context(), vID, userID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !isOwner {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 
 	records, err := h.serviceRecordService.GetServiceRecords(r.Context(), vehicleID)
 	if err != nil {

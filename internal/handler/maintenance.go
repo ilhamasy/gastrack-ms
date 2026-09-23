@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/ilhamasy/gastrack-ms/internal/middleware"
 	"github.com/ilhamasy/gastrack-ms/internal/model"
 	"github.com/ilhamasy/gastrack-ms/internal/service"
 )
@@ -37,7 +38,33 @@ func (h *MaintenanceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Wait, the closure in main.go intercepts the requests. Let's manually parse or set path values.
 	// Actually, the closure intercept is for Go 1.21 style. If I just route it manually here:
 	vehicleID := parts[0]
+	vID, err := uuid.Parse(vehicleID)
+	if err != nil {
+		http.Error(w, "invalid vehicle id", http.StatusBadRequest)
+		return
+	}
 	r.SetPathValue("id", vehicleID)
+
+	userIDStr, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	isOwner, err := h.vehicleService.IsVehicleOwner(r.Context(), vID, userID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !isOwner {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 
 	if len(parts) == 2 {
 		if r.Method == http.MethodGet {
