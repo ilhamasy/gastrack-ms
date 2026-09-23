@@ -3,58 +3,35 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
-	"github.com/google/uuid"
-	"github.com/ilhamasy/gastrack-ms/internal/middleware"
 	"github.com/ilhamasy/gastrack-ms/internal/service"
 )
 
+// ExpenseHandler handles expense analytics endpoints.
 type ExpenseHandler struct {
 	expenseService *service.ExpenseService
 	vehicleService *service.VehicleService
 }
 
+// NewExpenseHandler creates a new ExpenseHandler.
 func NewExpenseHandler(expenseService *service.ExpenseService, vehicleService *service.VehicleService) *ExpenseHandler {
 	return &ExpenseHandler{expenseService: expenseService, vehicleService: vehicleService}
 }
 
+// GetExpenseAnalytics returns expense analytics for a vehicle.
 func (h *ExpenseHandler) GetExpenseAnalytics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/vehicles/"), "/")
-	if len(parts) == 0 || parts[0] == "" {
-		http.Error(w, "vehicle id is required", http.StatusBadRequest)
-		return
-	}
-	vehicleID := parts[0]
-	vID, err := uuid.Parse(vehicleID)
+	vehicleID, err := extractVehicleIDFromPath(r.URL.Path)
 	if err != nil {
-		http.Error(w, "invalid vehicle id", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	userIDStr, ok := r.Context().Value(middleware.UserIDKey).(string)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	isOwner, err := h.vehicleService.IsVehicleOwner(r.Context(), vID, userID)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	if !isOwner {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	if _, _, err := requireVehicleOwnership(w, r, h.vehicleService, vehicleID); err != nil {
 		return
 	}
 

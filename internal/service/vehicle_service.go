@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ilhamasy/gastrack-ms/internal/database"
 )
 
 var (
@@ -26,11 +26,11 @@ type Vehicle struct {
 }
 
 type VehicleService struct {
-	db                 *pgxpool.Pool
+	db                 database.DBPool
 	maintenanceService *MaintenanceService
 }
 
-func NewVehicleService(db *pgxpool.Pool, maintenanceService *MaintenanceService) *VehicleService {
+func NewVehicleService(db database.DBPool, maintenanceService *MaintenanceService) *VehicleService {
 	return &VehicleService{db: db, maintenanceService: maintenanceService}
 }
 
@@ -71,6 +71,19 @@ func (s *VehicleService) IsVehicleOwner(ctx context.Context, vehicleID uuid.UUID
 		return false, fmt.Errorf("failed to check vehicle ownership: %w", err)
 	}
 	return exists, nil
+}
+
+// GetVehicleByID fetches a single vehicle by ID, scoped to the authenticated user.
+func (s *VehicleService) GetVehicleByID(ctx context.Context, vehicleID uuid.UUID, userID uuid.UUID) (*Vehicle, error) {
+	var v Vehicle
+	err := s.db.QueryRow(ctx,
+		"SELECT id, user_id, name, make, model, variant, year, is_primary, current_odometer FROM vehicles WHERE id = $1 AND user_id = $2",
+		vehicleID, userID,
+	).Scan(&v.ID, &v.UserID, &v.Name, &v.Make, &v.Model, &v.Variant, &v.Year, &v.IsPrimary, &v.CurrentOdometer)
+	if err != nil {
+		return nil, ErrVehicleNotFound
+	}
+	return &v, nil
 }
 
 func (s *VehicleService) AddVehicle(ctx context.Context, v *Vehicle) error {

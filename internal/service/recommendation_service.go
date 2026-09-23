@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ilhamasy/gastrack-ms/internal/database"
 	"github.com/ilhamasy/gastrack-ms/internal/model"
 )
 
 type RecommendationService struct {
-	db *pgxpool.Pool
+	db database.DBPool
 }
 
-func NewRecommendationService(db *pgxpool.Pool) *RecommendationService {
+func NewRecommendationService(db database.DBPool) *RecommendationService {
 	return &RecommendationService{db: db}
 }
 

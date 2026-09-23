@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ilhamasy/gastrack-ms/internal/database"
 	"github.com/ilhamasy/gastrack-ms/internal/model"
 )
 
@@ -15,10 +15,10 @@ var (
 )
 
 type OdometerService struct {
-	db *pgxpool.Pool
+	db database.DBPool
 }
 
-func NewOdometerService(db *pgxpool.Pool) *OdometerService {
+func NewOdometerService(db database.DBPool) *OdometerService {
 	return &OdometerService{db: db}
 }
 
