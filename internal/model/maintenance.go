@@ -34,4 +34,12 @@ type VehicleMaintenance struct {
 	Source          string     `json:"source"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+
+	// Calculated status fields (not persisted)
+	Status          string     `json:"status,omitempty"`
+	Priority        int        `json:"priority,omitempty"`
+	RemainingKm     *int       `json:"remaining_km,omitempty"`
+	NextServiceKm   *int       `json:"next_service_km,omitempty"`
+	RemainingDays   *int       `json:"remaining_days,omitempty"`
+	NextServiceDate *time.Time `json:"next_service_date,omitempty"`
 }
