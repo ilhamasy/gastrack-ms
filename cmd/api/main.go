@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -53,7 +52,10 @@ func main() {
 
 	authHandler := handler.NewAuthHandler(authService)
 	mux.HandleFunc("/api/auth/register", authHandler.Register)
-	mux.HandleFunc("/api/auth/login", authHandler.Login)
+
+	// Rate limit login to 5 requests per minute (1 request every 12 seconds), burst 5
+	loginLimiter := middleware.RateLimit(0.0833, 5)
+	mux.Handle("/api/auth/login", loginLimiter(http.HandlerFunc(authHandler.Login)))
 
 	preferencesService := service.NewPreferencesService(db.Pool)
 	preferencesHandler := handler.NewPreferencesHandler(preferencesService)
@@ -112,15 +114,15 @@ func main() {
 	})))
 
 	// 5. Setup HTTP server
-	srv := &http.Server{
+	server := &http.Server{
 		Addr:    ":" + cfg.Port,
-		Handler: mux,
+		Handler: middleware.RequestLogger(mux),
 	}
 
 	// 6. Graceful shutdown
 	go func() {
-		log.Printf("Server starting on port %s...", cfg.Port)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Printf("Starting server on port %s", cfg.Port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
 		}
 	}()
@@ -130,10 +132,9 @@ func main() {
 	<-quit
 	log.Println("Shutting down server...")
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
+	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelShutdown()
+	if err := server.Shutdown(ctxShutdown); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
