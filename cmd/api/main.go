@@ -64,16 +64,16 @@ func main() {
 
 	maintenanceHandler := handler.NewMaintenanceHandler(maintenanceService, vehicleService)
 	serviceRecordService := service.NewServiceRecordService(db.Pool)
-	serviceRecordHandler := handler.NewServiceRecordHandler(serviceRecordService)
+	serviceRecordHandler := handler.NewServiceRecordHandler(serviceRecordService, vehicleService)
 
 	vehicleHandler := handler.NewVehicleHandler(vehicleService)
 	authMiddleware := middleware.Auth([]byte(cfg.JWTSecret))
 	
 	expenseService := service.NewExpenseService(db.Pool)
-	expenseHandler := handler.NewExpenseHandler(expenseService)
+	expenseHandler := handler.NewExpenseHandler(expenseService, vehicleService)
 
 	recommendationService := service.NewRecommendationService(db.Pool)
-	recommendationHandler := handler.NewRecommendationHandler(recommendationService)
+	recommendationHandler := handler.NewRecommendationHandler(recommendationService, vehicleService)
 
 
 	mux.Handle("/api/users/preferences", authMiddleware(preferencesHandler))
