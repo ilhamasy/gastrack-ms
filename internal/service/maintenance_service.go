@@ -117,6 +117,16 @@ func (s *MaintenanceService) GetVehicleMaintenance(ctx context.Context, vehicleI
 		return nil, fmt.Errorf("rows error: %w", err)
 	}
 
+	// Sort items by priority (1 is highest priority/Overdue, 5 is Normal)
+	// We want Overdue (1) first, then Due (2), Critical (3), Upcoming (4), Normal (5)
+	for i := 0; i < len(items)-1; i++ {
+		for j := 0; j < len(items)-i-1; j++ {
+			if items[j].Priority > items[j+1].Priority {
+				items[j], items[j+1] = items[j+1], items[j]
+			}
+		}
+	}
+
 	if items == nil {
 		items = []model.VehicleMaintenance{}
 	}
