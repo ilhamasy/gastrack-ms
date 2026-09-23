@@ -58,6 +58,8 @@ func main() {
 	odometerService := service.NewOdometerService(db.Pool)
 	odometerHandler := handler.NewOdometerHandler(odometerService)
 
+	maintenanceHandler := handler.NewMaintenanceHandler(maintenanceService, vehicleService)
+
 	vehicleHandler := handler.NewVehicleHandler(vehicleService)
 	authMiddleware := middleware.Auth([]byte(cfg.JWTSecret))
 	
@@ -65,6 +67,10 @@ func main() {
 	mux.Handle("/api/vehicles/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/odometer") {
 			odometerHandler.ServeHTTP(w, r)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/maintenance") {
+			maintenanceHandler.ServeHTTP(w, r)
 			return
 		}
 		vehicleHandler.ServeHTTP(w, r)

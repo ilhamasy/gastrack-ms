@@ -1,0 +1,2 @@
+ALTER TABLE vehicle_maintenance
+ADD COLUMN source VARCHAR(50) NOT NULL DEFAULT 'TEMPLATE';
