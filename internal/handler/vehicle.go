@@ -6,18 +6,20 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/ilhamasy/gastrack-ms/internal/middleware"
 	"github.com/ilhamasy/gastrack-ms/internal/service"
 )
 
+// VehicleHandler handles vehicle CRUD operations.
 type VehicleHandler struct {
 	vehicleService *service.VehicleService
 }
 
+// NewVehicleHandler creates a new VehicleHandler.
 func NewVehicleHandler(vehicleService *service.VehicleService) *VehicleHandler {
 	return &VehicleHandler{vehicleService: vehicleService}
 }
 
+// AddVehicleRequest represents the request body for creating or updating a vehicle.
 type AddVehicleRequest struct {
 	Name            string `json:"name"`
 	Make            string `json:"make"`
@@ -44,16 +46,11 @@ func (h *VehicleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetVehicles returns all vehicles for the authenticated user.
 func (h *VehicleHandler) GetVehicles(w http.ResponseWriter, r *http.Request) {
-	userIDStr, ok := r.Context().Value(middleware.UserIDKey).(string)
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-
-	userID, err := uuid.Parse(userIDStr)
+	userID, err := extractUserID(r)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid user id")
+		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -67,9 +64,13 @@ func (h *VehicleHandler) GetVehicles(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(vehicles)
 }
 
+// AddVehicle creates a new vehicle for the authenticated user.
 func (h *VehicleHandler) AddVehicle(w http.ResponseWriter, r *http.Request) {
-	userIDStr, _ := r.Context().Value(middleware.UserIDKey).(string)
-	userID, _ := uuid.Parse(userIDStr)
+	userID, err := extractUserID(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
 	var req AddVehicleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -82,7 +83,6 @@ func (h *VehicleHandler) AddVehicle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default name to Make + Model if not provided
 	if req.Name == "" {
 		req.Name = req.Make + " " + req.Model
 	}
@@ -107,11 +107,14 @@ func (h *VehicleHandler) AddVehicle(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(vehicle)
 }
 
+// UpdateVehicle updates an existing vehicle.
 func (h *VehicleHandler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
-	userIDStr, _ := r.Context().Value(middleware.UserIDKey).(string)
-	userID, _ := uuid.Parse(userIDStr)
+	userID, err := extractUserID(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
-	// Extract ID from URL path /api/vehicles/{id}
 	pathParts := strings.Split(r.URL.Path, "/")
 	idStr := pathParts[len(pathParts)-1]
 	id, err := uuid.Parse(idStr)
@@ -134,20 +137,13 @@ func (h *VehicleHandler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
 		req.Name = req.Make + " " + req.Model
 	}
 
-	// We might need to fetch the existing vehicle first to preserve is_primary etc.
-	// But let's assume UI sends is_primary or we just query it. For MVP, we can just set it to false and let the service handle it, or pass it via request.
-	// We'll query first to be safe and merge.
-	vehicles, err := h.vehicleService.GetVehicles(r.Context(), userID)
-	var existing *service.Vehicle
-	for _, v := range vehicles {
-		if v.ID == id {
-			existing = &v
-			break
+	existing, err := h.vehicleService.GetVehicleByID(r.Context(), id, userID)
+	if err != nil {
+		if err == service.ErrVehicleNotFound {
+			writeError(w, http.StatusNotFound, "vehicle not found")
+			return
 		}
-	}
-
-	if existing == nil {
-		writeError(w, http.StatusNotFound, "vehicle not found")
+		writeError(w, http.StatusInternalServerError, "failed to fetch vehicle")
 		return
 	}
 
@@ -166,9 +162,13 @@ func (h *VehicleHandler) UpdateVehicle(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(existing)
 }
 
+// DeleteVehicle removes a vehicle.
 func (h *VehicleHandler) DeleteVehicle(w http.ResponseWriter, r *http.Request) {
-	userIDStr, _ := r.Context().Value(middleware.UserIDKey).(string)
-	userID, _ := uuid.Parse(userIDStr)
+	userID, err := extractUserID(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
 	pathParts := strings.Split(r.URL.Path, "/")
 	idStr := pathParts[len(pathParts)-1]
@@ -190,11 +190,14 @@ func (h *VehicleHandler) DeleteVehicle(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// SetPrimaryVehicle marks a vehicle as the user's primary vehicle.
 func (h *VehicleHandler) SetPrimaryVehicle(w http.ResponseWriter, r *http.Request) {
-	userIDStr, _ := r.Context().Value(middleware.UserIDKey).(string)
-	userID, _ := uuid.Parse(userIDStr)
+	userID, err := extractUserID(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
-	// Extract ID from URL path /api/vehicles/{id}/primary
 	pathParts := strings.Split(r.URL.Path, "/")
 	if len(pathParts) < 2 {
 		writeError(w, http.StatusBadRequest, "invalid vehicle id")

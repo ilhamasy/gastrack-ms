@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/ilhamasy/gastrack-ms/internal/middleware"
 	"github.com/ilhamasy/gastrack-ms/internal/model"
 	"github.com/ilhamasy/gastrack-ms/internal/service"
 )
@@ -27,7 +28,16 @@ func (h *PreferencesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.Context().Value("user_id").(string)
+	userIDStr, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok || userIDStr == "" {
+		// Fallback check for raw string key "user_id" if UserIDKey not used
+		userIDStr, ok = r.Context().Value("user_id").(string)
+	}
+	if !ok || userIDStr == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID := userIDStr
 
 	switch r.Method {
 	case http.MethodGet:

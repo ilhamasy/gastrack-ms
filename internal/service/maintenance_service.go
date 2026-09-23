@@ -3,18 +3,19 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ilhamasy/gastrack-ms/internal/database"
 	"github.com/ilhamasy/gastrack-ms/internal/model"
 )
 
 type MaintenanceService struct {
-	db *pgxpool.Pool
+	db database.DBPool
 }
 
-func NewMaintenanceService(db *pgxpool.Pool) *MaintenanceService {
+func NewMaintenanceService(db database.DBPool) *MaintenanceService {
 	return &MaintenanceService{db: db}
 }
 
@@ -117,15 +118,10 @@ func (s *MaintenanceService) GetVehicleMaintenance(ctx context.Context, vehicleI
 		return nil, fmt.Errorf("rows error: %w", err)
 	}
 
-	// Sort items by priority (1 is highest priority/Overdue, 5 is Normal)
-	// We want Overdue (1) first, then Due (2), Critical (3), Upcoming (4), Normal (5)
-	for i := 0; i < len(items)-1; i++ {
-		for j := 0; j < len(items)-i-1; j++ {
-			if items[j].Priority > items[j+1].Priority {
-				items[j], items[j+1] = items[j+1], items[j]
-			}
-		}
-	}
+	// Sort items by priority: Overdue (1) first, Normal (5) last.
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Priority < items[j].Priority
+	})
 
 	if items == nil {
 		items = []model.VehicleMaintenance{}

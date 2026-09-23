@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ilhamasy/gastrack-ms/internal/database"
 	"github.com/ilhamasy/gastrack-ms/internal/model"
 )
 
 type PreferencesService struct {
-	db *pgxpool.Pool
+	db database.DBPool
 }
 
-func NewPreferencesService(db *pgxpool.Pool) *PreferencesService {
+func NewPreferencesService(db database.DBPool) *PreferencesService {
 	return &PreferencesService{db: db}
 }
 

@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ilhamasy/gastrack-ms/internal/database"
 	"github.com/ilhamasy/gastrack-ms/internal/model"
 )
 
 type ExpenseService struct {
-	db *pgxpool.Pool
+	db database.DBPool
 }
 
-func NewExpenseService(db *pgxpool.Pool) *ExpenseService {
+func NewExpenseService(db database.DBPool) *ExpenseService {
 	return &ExpenseService{db: db}
 }
 

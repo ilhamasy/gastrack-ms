@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ilhamasy/gastrack-ms/internal/database"
 )
 
 type NotificationService struct {
-	db                 *pgxpool.Pool
+	db                 database.DBPool
 	preferencesService *PreferencesService
 }
 
-func NewNotificationService(db *pgxpool.Pool, prefsService *PreferencesService) *NotificationService {
+func NewNotificationService(db database.DBPool, prefsService *PreferencesService) *NotificationService {
 	return &NotificationService{db: db, preferencesService: prefsService}
 }
 

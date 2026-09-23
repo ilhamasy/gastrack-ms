@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ilhamasy/gastrack-ms/internal/database"
 	"github.com/ilhamasy/gastrack-ms/internal/model"
 )
 
 type ServiceRecordService struct {
-	db *pgxpool.Pool
+	db database.DBPool
 }
 
-func NewServiceRecordService(db *pgxpool.Pool) *ServiceRecordService {
+func NewServiceRecordService(db database.DBPool) *ServiceRecordService {
 	return &ServiceRecordService{db: db}
 }
 
