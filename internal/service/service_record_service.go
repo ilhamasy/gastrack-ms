@@ -99,3 +99,71 @@ func (s *ServiceRecordService) AddServiceRecord(ctx context.Context, vehicleID s
 
 	return &record, nil
 }
+
+func (s *ServiceRecordService) GetServiceRecords(ctx context.Context, vehicleID string) ([]model.ServiceRecord, error) {
+	query := `
+		SELECT 
+			r.id, r.vehicle_id, r.service_date, r.odometer_km, r.workshop_name, r.total_cost, r.notes, r.created_at, r.updated_at,
+			i.id, i.maintenance_id, i.item_name, i.brand, i.product, i.part_number, i.quantity, i.cost, i.notes, i.created_at
+		FROM service_records r
+		LEFT JOIN service_items i ON r.id = i.service_record_id
+		WHERE r.vehicle_id = $1
+		ORDER BY r.service_date DESC, r.created_at DESC
+	`
+
+	rows, err := s.db.Query(ctx, query, vehicleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query service records: %w", err)
+	}
+	defer rows.Close()
+
+	recordMap := make(map[uuid.UUID]*model.ServiceRecord)
+	var orderedIDs []uuid.UUID
+
+	for rows.Next() {
+		var r model.ServiceRecord
+		var i model.ServiceItem
+		var itemID *uuid.UUID
+
+		err := rows.Scan(
+			&r.ID, &r.VehicleID, &r.ServiceDate, &r.OdometerKm, &r.WorkshopName, &r.TotalCost, &r.Notes, &r.CreatedAt, &r.UpdatedAt,
+			&itemID, &i.MaintenanceID, &i.ItemName, &i.Brand, &i.Product, &i.PartNumber, &i.Quantity, &i.Cost, &i.Notes, &i.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		if _, exists := recordMap[r.ID]; !exists {
+			recordMap[r.ID] = &model.ServiceRecord{
+				ID:           r.ID,
+				VehicleID:    r.VehicleID,
+				ServiceDate:  r.ServiceDate,
+				OdometerKm:   r.OdometerKm,
+				WorkshopName: r.WorkshopName,
+				TotalCost:    r.TotalCost,
+				Notes:        r.Notes,
+				Items:        []model.ServiceItem{},
+				CreatedAt:    r.CreatedAt,
+				UpdatedAt:    r.UpdatedAt,
+			}
+			orderedIDs = append(orderedIDs, r.ID)
+		}
+
+		if itemID != nil {
+			i.ID = *itemID
+			i.ServiceRecordID = r.ID
+			recordMap[r.ID].Items = append(recordMap[r.ID].Items, i)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	var records []model.ServiceRecord
+	for _, id := range orderedIDs {
+		records = append(records, *recordMap[id])
+	}
+
+	return records, nil
+}
